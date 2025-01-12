@@ -4,17 +4,19 @@ from random import randint, random
 
 import telebot
 from aiogram import types
+from dotenv import load_dotenv
 
-bot = telebot.TeleBot("7265759378:AAHTkTywUg36q10ZZebcM39COb5A8Qb9hMk")
+load_dotenv()
+bot = telebot.TeleBot('TOKEN')
 
 import psycopg2
 
 # Подключение бд и курсора
 
 conn = psycopg2.connect(
-    dbname="final python project",
-    user="postgres",
-    password="Vse_Ravno_Zabudy",
+    dbname='DBNAME',
+    user='USER',
+    password='PASSWORD',
     host="localhost",
     port=5432,
 )
