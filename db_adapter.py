@@ -77,11 +77,30 @@ class UserStates(telebot.handler_backends.StatesGroup):
 
 cur.execute("BEGIN")
 cur.execute(
-    "CREATE TABLE IF NOT EXISTS users (id BIGINT NOT NULL, name VARCHAR, is_admin BOOLEAN, question_answer TEXT, id_used_questions TEXT); CREATE TABLE IF NOT EXISTS questions (id BIGINT NOT NULL, question_text VARCHAR)"
-)
-cur.execute(
-    "INSERT INTO questions VALUES(1, 'Врятли до этого вопроса достучатся, но только не нём держится мой рандомайзер))')"
-)
+    "CREATE TABLE IF NOT EXISTS users (id BIGINT NOT NULL, name VARCHAR, is_admin BOOLEAN, question_answer TEXT, id_used_questions INT); CREATE TABLE IF NOT EXISTS questions (id BIGINT NOT NULL, question_text VARCHAR)"
+           )
+cur.execute("INSERT INTO questions VALUES""""
+            (1, 'Солнце – это звезда?'),
+            (2, 'Вода состоит из двух элементов: водорода и кислорода?'),
+            (3, 'Кошки умеют летать?'),
+            (4, 'Земля круглая?'),
+            (5, 'В Швейцарии нет моря?'),
+            (6, 'Все медузы ядовиты?'),
+            (7, 'Кофе делают из зёрен?'),
+            (8, 'У людей есть три глаза?'),
+            (9, 'Луна светит сама?'),
+            (10, 'В мире есть полярные медведи?'),
+            (11, 'Птицы могут плавать под водой?'),
+            (12, 'Арбуз — это овощ?'),
+            (13, 'Ушки на торте – это детали для украшения?'),
+            (14, 'Все собаки умеют лаять?'),
+            (15, 'Слон — это самый большой наземный животное?'),
+            (16, 'В леднике всегда тепло?'),
+            (17, 'У человека есть зубы?'),
+            (18, 'В Москве есть Кремль?'),
+            (19, 'Дороги всегда ровные?'),
+            (20, 'Радуга состоит из нескольких цветов?')
+            """)
 cur.execute("COMMIT")
 
 
@@ -94,8 +113,6 @@ cur.execute("COMMIT")
 с помощью состояний
 """
 
-# Дебаг есть, но я не уверен в закрытии транзакции
-
 
 @bot.message_handler(commands=["start"])
 def add_user_to_the_bd(message):
@@ -103,7 +120,7 @@ def add_user_to_the_bd(message):
     markup2.add(telebot.types.KeyboardButton("/answer"))
     try:
         cur.execute("Begin")
-        cur.execute(f"INSERT INTO users(id) VALUES ({message.chat.id})")
+        cur.execute(f"INSERT INTO users(id, id_used_questions) VALUES ({message.chat.id}, 1)")
         if message.chat.id == 5870829304 or 2087840117:
             cur.execute(
                 f"UPDATE users SET is_admin = true WHERE ID = {message.chat.id}"
@@ -167,19 +184,23 @@ def name_state(message):
     """Переделывай рандомайзер (Выдаёт разные вопросы)"""
 
 
-# Сори, с рандомайзером не очень заладилось
-
-
 def get_random_id_question(message):
-    list_of_ids = [0]
-    list_of_ids.append(list_of_ids[-1] + 1)
-    return list_of_ids[-1] + 1
+    cur.execute("ROLLBACK")
+
+    cur.execute(f"SELECT id_used_questions FROM users WHERE id = {message.chat.id}")
+    question_id = cur.fetchone()
+
+    cur.execute(f"UPDATE users SET id_used_questions = {int(question_id[0]) + 1} WHERE id = {message.chat.id}")
+
+    return int(question_id[0])
 
 
 @bot.message_handler(commands=["answer"])
 def send_question(message):
     cur.execute("ROLLBACK")
     question = get_random_id_question(message)
+
+
 
     markup1 = telebot.types.ReplyKeyboardMarkup()
     markup1.add(telebot.types.KeyboardButton("Да"))
@@ -197,10 +218,14 @@ def send_question(message):
         )
         bot.set_state(message.chat.id, UserStates.answer)
         return question_text
+
     except IndexError:
         cur.execute("ROLLBACK")
         bot.delete_state(message.from_user.id)
         bot.send_message(message.chat.id, "К сожалению вопросы закончились(")
+
+        cur.execute(f"UPDATE users SET id_used_questions = {question} WHERE id = {message.chat.id}")
+
 
         # Ответ пользователя
 
@@ -216,7 +241,7 @@ def answer_state(message):
     save_info = str(make_facking_str(save_info[0]))
 
     new_info = (
-        str([f"{question_text}: {data["answer"]}"])
+        str([f"{question_text}: {data["answer"] + ';  '}"])
         .replace("(", "")
         .replace(")", "")
         .replace("'", "")
@@ -230,17 +255,21 @@ def answer_state(message):
         .replace(")", "")
         .replace("{", "")
         .replace("}", "")
-        .replace("'[None,]', ", "")
+        .replace("'None,', ", "")
         .replace("[", "")
         .replace("]", "")
         .replace('"', "")
         .replace("'", "")
     )
 
+    markup2 = telebot.types.ReplyKeyboardMarkup()
+    markup2.add(telebot.types.KeyboardButton("/answer"))
+
     cur.execute(f"SELECT question_answer FROM users WHERE ID = {message.chat.id}")
     is_question_answer_empty = cur.fetchall()
     if is_question_answer_empty:
         cur.execute("BEGIN")
+
         cur.execute(
             f"UPDATE users SET question_answer = ARRAY['{save_info}', '{new_info}']"
         )
@@ -251,26 +280,13 @@ def answer_state(message):
             f"UPDATE users SET question_answer = ARRAY['{save_info}','{new_info}']"
         )
         cur.execute("COMMIT")
-    bot.send_message(message.chat.id, "Ваш ответ записан")
-
-
-"""Отстрингование и красивый текст)"""
+    bot.send_message(message.chat.id, "Ваш ответ записан, ещё вопросик?", reply_markup=markup2)
 
 
 def make_facking_str(listik):
 
     " ".join(str(x) for x in listik)
     return listik
-
-
-def make_crasivi_str(text):
-    str(text).replace("{", "").replace("}", "").replace("[", "").replace(
-        "]", ""
-    ).replace("(", "").replace(")", "").replace("'", "").replace('"', "").replace(
-        ",", ""
-    )
-
-    # Статистика этого данного пользователя
 
 
 @bot.message_handler(commands=["show_my_stat"])
@@ -360,7 +376,7 @@ def show_all_users_stat(message):
         all_info_users = cur.fetchall()
         bot.send_message(
             message.chat.id,
-            f"{str(all_info_users[0]).replace('{', '').replace('}', '').replace('"', '').replace('"\"', '').replace('[', '').replace(']', '').replace(',', '').replace("'", '').replace('\\', '').replace('None', '').replace('(', '').replace(')', '')}\n",
+            f"{str(all_info_users[0]).replace('{', '').replace('}', '').replace('"', '').replace('"\"', '').replace('[', '').replace(']', '').replace(',', '').replace("'", '').replace('\\', '').replace('None', '').replace('(', '').replace(')', '')};",
         )
 
 
